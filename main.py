@@ -90,10 +90,10 @@ def get_binance_top_crypto(limit=20):
         return None
 
 # ---------------------------------------------------------
-# 5. ANALISIS DENGAN GOOGLE GEMINI API (AUTO-DETECT MODEL)
+# 5. ANALISIS DENGAN GOOGLE GEMINI API (DYNAMIC AUTO-TRY)
 # ---------------------------------------------------------
 def analyze_crypto_with_gemini(market_data):
-    """Mengirim data pasar ke Gemini API dengan pemilihan model otomatis"""
+    """Mengirim data pasar ke Gemini API dengan pencarian model otomatis"""
     if not GEMINI_API_KEY:
         return "⚠️ *Error*: GEMINI_API_KEY belum dikonfigurasi di Environment Variables!"
         
@@ -126,41 +126,43 @@ def analyze_crypto_with_gemini(market_data):
     [1-2 kalimat saran kondisi pasar makro saat ini]
     """
     
-    # Deteksi otomatis model yang aktif dari API Google
-    selected_model = None
+    # Ambil daftar semua model dari akun Google API secara otomatis
+    candidate_models = []
     try:
-        available_models = [m.name for m in client.models.list()]
-        print(f"[INFO] Daftar model aktif di akun Anda: {available_models}")
-        
-        # Cari model varian 'flash' yang aktif
-        for m in available_models:
-            if 'flash' in m.lower():
-                selected_model = m
-                break
-                
-        if not selected_model and available_models:
-            selected_model = available_models[0]
+        listed = list(client.models.list())
+        for m in listed:
+            name = m.name.replace("models/", "")
+            candidate_models.append(name)
     except Exception as e:
-        print(f"[WARNING] Gagal mengambil daftar model otomatis: {e}")
+        print(f"[WARNING] Gagal mengambil daftar model: {e}")
 
-    if not selected_model:
-        selected_model = 'gemini-2.5-flash'
-        
-    print(f"[INFO] Menggunakan model aktif: {selected_model}")
-    
-    try:
-        response = client.models.generate_content(
-            model=selected_model,
-            contents=f"Berikut adalah data 20 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=0.2,
+    # Tambahkan daftar nama cadangan standar dari versi terbaru ke versi lama
+    default_candidates = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
+    for d in default_candidates:
+        if d not in candidate_models:
+            candidate_models.append(d)
+
+    last_err = None
+    # Uji coba setiap model sampai menemukan yang aktif di server Google
+    for model_name in candidate_models:
+        try:
+            print(f"[INFO] Memproses analisis dengan model: {model_name}")
+            response = client.models.generate_content(
+                model=model_name,
+                contents=f"Berikut adalah data 20 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.2,
+                )
             )
-        )
-        return response.text
-    except Exception as e:
-        print(f"[ERROR Gemini API] {e}")
-        return f"⚠️ *Gagal melakukan analisis Gemini API:* `{str(e)}`"
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            print(f"[DEBUG] Model {model_name} gagal: {e}")
+            last_err = e
+            continue
+            
+    return f"⚠️ *Gagal melakukan analisis Gemini API:* `{str(last_err)}`"
 
 # ---------------------------------------------------------
 # 6. WORKER LOOP / SCHEDULED SURVEI
