@@ -162,19 +162,37 @@ value-book-to-market-factor.py
 value-factor-effect-within-countries.py
 volatility-risk-premium-effect.py"""
     
-    try:
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=f"Berikut adalah data 20 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=0.2,
+  def analyze_crypto_with_gemini(market_data):
+    if not GEMINI_API_KEY:
+        return "⚠️ *Error*: GEMINI_API_KEY belum dikonfigurasi di Environment Variables!"
+        
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    
+    system_prompt = """
+    Anda adalah seorang Senior Crypto Analyst & Quant Trader profesional.
+    Tugas Anda adalah memindai data pasar 20 crypto teratas berdasar volume 24 jam dan memilih koin yang paling 'WORTH IT' untuk dibeli/dijual saat ini.
+    """
+    
+    # Daftar model yang dicoba otomatis jika salah satu gagal
+    candidate_models = ['gemini-2.0-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash-002']
+    
+    for model_name in candidate_models:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=f"Berikut adalah data 20 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.2,
+                )
             )
-        )
-        return response.text
-    except Exception as e:
-        print(f"[ERROR Gemini API] {e}")
-        return f"⚠️ *Gagal melakukan analisis Gemini API:* `{str(e)}`"
+            return response.text
+        except Exception as e:
+            print(f"[DEBUG] Model {model_name} tidak merespons, mencoba model berikutnya... Error: {e}")
+            continue
+            
+    return "⚠️ *Gagal melakukan analisis Gemini API*: Seluruh pilihan model gagal dipanggil."
+
 
 # ---------------------------------------------------------
 # 6. WORKER LOOP / SCHEDULED SURVEI
