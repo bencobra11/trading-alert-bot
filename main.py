@@ -90,10 +90,10 @@ def get_binance_top_crypto(limit=20):
         return None
 
 # ---------------------------------------------------------
-# 5. ANALISIS DENGAN GOOGLE GEMINI API
+# 5. ANALISIS DENGAN GOOGLE GEMINI API (AUTO-DETECT MODEL)
 # ---------------------------------------------------------
 def analyze_crypto_with_gemini(market_data):
-    """Mengirim data pasar ke Gemini API untuk dievaluasi"""
+    """Mengirim data pasar ke Gemini API dengan pemilihan model otomatis"""
     if not GEMINI_API_KEY:
         return "⚠️ *Error*: GEMINI_API_KEY belum dikonfigurasi di Environment Variables!"
         
@@ -126,9 +126,31 @@ def analyze_crypto_with_gemini(market_data):
     [1-2 kalimat saran kondisi pasar makro saat ini]
     """
     
+    # Deteksi otomatis model yang aktif dari API Google
+    selected_model = None
+    try:
+        available_models = [m.name for m in client.models.list()]
+        print(f"[INFO] Daftar model aktif di akun Anda: {available_models}")
+        
+        # Cari model varian 'flash' yang aktif
+        for m in available_models:
+            if 'flash' in m.lower():
+                selected_model = m
+                break
+                
+        if not selected_model and available_models:
+            selected_model = available_models[0]
+    except Exception as e:
+        print(f"[WARNING] Gagal mengambil daftar model otomatis: {e}")
+
+    if not selected_model:
+        selected_model = 'gemini-2.5-flash'
+        
+    print(f"[INFO] Menggunakan model aktif: {selected_model}")
+    
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model=selected_model,
             contents=f"Berikut adalah data 20 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
