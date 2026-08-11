@@ -26,7 +26,6 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
-# Interval survei pasar (dalam jam) - Default: setiap 12 jam
 SURVEY_INTERVAL_HOURS = float(os.environ.get("SURVEY_INTERVAL_HOURS", "12"))
 TOP_COINS_COUNT = int(os.environ.get("TOP_COINS_COUNT", "20"))
 
@@ -100,69 +99,35 @@ def analyze_crypto_with_gemini(market_data):
         
     client = genai.Client(api_key=GEMINI_API_KEY)
     
-    system_prompt = """ roa-effect-within-stocks.py
-12-month-cycle-in-cross-section-of-stocks-returns.py
-52-weeks-high-effect-in-stocks.py
-accrual-anomaly.py
-asset-class-momentum-rotational-system.py
-asset-class-trend-following.py
-asset-growth-effect.py
-betting-against-beta-factor-in-country-equity-indexes.py
-betting-against-beta-factor-in-stocks.py
-combining-fundamental-fscore-and-equity-short-term-reversals.py
-combining-smart-factors-momentum-and-market-portfolio.py
-consistent-momentum-strategy.py
-crude-oil-predicts-equity-returns.py
-currency-momentum-factor.py
-currency-value-factor-ppp-strategy.py
-dispersion-trading.py
-dollar-carry-trade.py
-earnings-announcement-premium.py
-earnings-announcements-combined-with-stock-repurchases.py
-earnings-quality-factor.py
-esg-factor-momentum-strategy.py
-fed-model.py
-fx-carry-trade.py
-how-to-use-lexical-density-of-company-filings.py
-intraday-seasonality-in-bitcoin.py
-january-barometer.py
-low-volatility-factor-effect-in-stocks.py
-market-sentiment-and-an-overnight-anomaly.py
-momentum-and-reversal-combined-with-volatility-effect-in-stocks.py
-momentum-effect-in-commodities.py
-momentum-factor-and-style-rotation-effect.py
-momentum-factor-combined-with-asset-growth-effect.py
-momentum-factor-effect-in-stocks.py
-momentum-in-mutual-fund-returns.py
-option-expiration-week-effect.py
-paired-switching.py
-pairs-trading-with-country-etfs.py
-pairs-trading-with-stocks
-payday-anomaly.py
-rd-expenditures-and-stock-returns.py
-rebalancing-premium-in-cryptocurrencies.py
-residual-momentum-factor.py
-return-asymmetry-effect-in-commodity-futures.py
-reversal-during-earnings-announcements.py
-sector-momentum-rotational-system.py
-short-interest-effect-long-short-version.py
-short-term-reversal-in-stocks.py
-short-term-reversal-with-futures.py
-skewness-effect-in-commodities.py
-small-capitalization-stocks-premium-anomaly.py
-soccer-clubs-stocks-arbitrage.py
-synthetic-lending-rates-predict-subsequent-market-return.py
-term-structure-effect-in-commodities.py
-time-series-momentum-effect.py
-trading-wti-brent-spread.py
-trend-following-effect-in-stocks.py
-turn-of-the-month-in-equity-indexes.py
-value-and-momentum-factors-across-asset-classes.py
-value-book-to-market-factor.py
-value-factor-effect-within-countries.py
-volatility-risk-premium-effect.py"""
+    system_prompt = """
+    Anda adalah seorang Senior Crypto Analyst & Quant Trader profesional.
+    Tugas Anda adalah memindai data pasar 20 crypto teratas berdasar volume 24 jam dan memilih koin yang paling 'WORTH IT' untuk dibeli/dijual saat ini.
+
+    Kriteria Survei & Evaluasi Anda:
+    1. Momentum & Breakout Volume: Koin dengan volume tinggi dan pergerakan harga signifikan.
+    2. Area Dip/Retracement: Koin berkualitas yang sedang mengalami koreksi sehat mendekati support 24 jam.
+    3. Risk/Reward Ratio: Selalu tentukan titik Beli (Entry Zone), Target Jual (Take Profit), dan Batas Rugi (Stop Loss).
+
+    Format Jawaban (Gunakan Markdown Telegram):
+    🚨 *CRYPTO MARKET AI SURVEY REPORT (GEMINI)* 🚨
+    📅 *Waktu:* Real-time Analysis
+
+    🟢 *REKOMENDASI BELI (WORTH TO BUY)*
+    1. *[NAMA KOIN]*
+       - *Alasan:* [Penjelasan teknikal/momentum singkat]
+       - 🎯 *Area Beli (Entry):* $X.XX
+       - 📈 *Target Jual (TP):* $X.XX (+X%)
+       - 🛡️ *Stop Loss (SL):* $X.XX (-X%)
+
+    🔴 *KOIN PERLU DIWASPADAI / DIJUAL (TAKE PROFIT / AVOID)*
+    - *[NAMA KOIN]:* [Alasan singkat, misal overbought / penurunan volume]
+
+    💡 *RINGKASAN STRATEGI PASAR:*
+    [1-2 kalimat saran kondisi pasar makro saat ini]
+    """
     
- response = client.models.generate_content(
+    try:
+        response = client.models.generate_content(
             model='gemini-2.0-flash',
             contents=f"Berikut adalah data 20 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
             config=types.GenerateContentConfig(
