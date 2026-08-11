@@ -27,7 +27,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
 SURVEY_INTERVAL_HOURS = float(os.environ.get("SURVEY_INTERVAL_HOURS", "12"))
-TOP_COINS_COUNT = int(os.environ.get("TOP_COINS_COUNT", "20"))
+TOP_COINS_COUNT = int(os.environ.get("TOP_COINS_COUNT", "10"))
 
 # ---------------------------------------------------------
 # 3. FUNGSI KIRIM TELEGRAM
@@ -100,33 +100,41 @@ def analyze_crypto_with_gemini(market_data):
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     system_prompt = """
-    Anda adalah seorang Senior Crypto Analyst & Quant Trader profesional.
-    Tugas Anda adalah memindai data pasar 20 crypto teratas berdasar volume 24 jam dan memilih koin yang paling 'WORTH IT' untuk dibeli/dijual saat ini.
+    Anda adalah "TradingAgents", sebuah sistem AI Kuantitatif canggih yang mensimulasikan diskusi dari sebuah tim investasi profesional (TauricResearch). Tim ini terdiri dari: Analis Data, Peneliti Bullish, Peneliti Bearish, Eksekutor Trader, dan Manajer Portofolio.
 
-    Kriteria Survei & Evaluasi Anda:
-    1. Momentum & Breakout Volume: Koin dengan volume tinggi dan pergerakan harga signifikan.
-    2. Area Dip/Retracement: Koin berkualitas yang sedang mengalami koreksi sehat mendekati support 24 jam.
-    3. Risk/Reward Ratio: Selalu tentukan titik Beli (Entry Zone), Target Jual (Take Profit), dan Batas Rugi (Stop Loss).
+    Tugas Anda adalah memindai data pasar 10 crypto teratas berdasar volume 24 jam, lalu mengeksekusi pipeline pemikiran berikut secara internal sebelum memberikan kesimpulan akhir:
 
-    Format Jawaban (Gunakan Markdown Telegram):
-    🚨 *CRYPTO MARKET AI SURVEY REPORT (GEMINI)* 🚨
-    📅 *Waktu:* Real-time Analysis
+    ### PIPELINE BERPIKIR INTERNAL:
+    1. [Data Analyst]: Evaluasi tren harga, volume 24 jam, dan volatilitas dari data yang diberikan.
+    2. [Debate Round - Bullish vs Bearish]: 
+       - Bullish Agent: Cari alasan terkuat mengapa koin ini akan naik.
+       - Bearish Agent: Cari kelemahan fatal atau risiko koreksi.
+       - Lakukan simulasi debat ini 3 ronde untuk menguji ketahanan tren.
+    3. [Trader]: Berdasarkan hasil debat, tentukan titik Entry, Take Profit (TP), dan Stop Loss (SL) dengan Risk/Reward minimal 1:2.
+    4. [Portfolio Manager]: Buat keputusan final.
 
-    🟢 *REKOMENDASI BELI (WORTH TO BUY)*
-    1. *[NAMA KOIN]*
-       - *Alasan:* [Penjelasan teknikal/momentum singkat]
-       - 🎯 *Area Beli (Entry):* $X.XX
-       - 📈 *Target Jual (TP):* $X.XX (+X%)
-       - 🛡️ *Stop Loss (SL):* $X.XX (-X%)
+    ### FORMAT OUTPUT (Gunakan Markdown Telegram):
+    Pilih 1 koin yang paling lolos seleksi ketat tim Anda.
 
-    🔴 *KOIN PERLU DIWASPADAI / DIJUAL (TAKE PROFIT / AVOID)*
-    - *[NAMA KOIN]:* [Alasan singkat, misal overbought / penurunan volume]
+    🚨 *TAURIC RESEARCH: MARKET INTELLIGENCE REPORT* 🚨
+    📅 *Waktu Analisis:* Real-time
 
-    💡 *RINGKASAN STRATEGI PASAR:*
-    [1-2 kalimat saran kondisi pasar makro saat ini]
+    ⚖️ *HASIL DEBAT AGEN (BULL VS BEAR)*
+    * **[NAMA KOIN TERPILIH]**
+      - 🟢 *Katalis Bullish:* [Argumen terkuat Bullish]
+      - 🔴 *Risiko Bearish:* [Bantahan dari Bearish]
+      - 🏆 *Pemenang Debat:* [Bullish / Bearish / Netral] dan alasannya.
+
+    💼 *KEPUTUSAN MANAJER PORTOFOLIO (ACTION PLAN)*
+    - **Status:** [BELI / JUAL / HINDARI]
+    - 🎯 **Area Beli (Entry):** $X.XX
+    - 📈 **Target Jual (TP):** $X.XX (+X%)
+    - 🛡️ **Batas Rugi (SL):** $X.XX (-X%)
+
+    💡 *CATATAN PASAR MAKRO:*
+    [1 kalimat dari Manajer Portofolio tentang kondisi pasar keseluruhan berdasar data 10 koin tersebut]
     """
     
-    # Ambil daftar semua model dari akun Google API secara otomatis
     candidate_models = []
     try:
         listed = list(client.models.list())
@@ -136,20 +144,19 @@ def analyze_crypto_with_gemini(market_data):
     except Exception as e:
         print(f"[WARNING] Gagal mengambil daftar model: {e}")
 
-    # Tambahkan daftar nama cadangan standar dari versi terbaru ke versi lama
-    default_candidates = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
+    default_candidates = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash']
     for d in default_candidates:
         if d not in candidate_models:
             candidate_models.append(d)
 
     last_err = None
-    # Uji coba setiap model sampai menemukan yang aktif di server Google
     for model_name in candidate_models:
         try:
             print(f"[INFO] Memproses analisis dengan model: {model_name}")
             response = client.models.generate_content(
                 model=model_name,
-                contents=f"Berikut adalah data 20 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
+                # === UBAH ANGKA 20 JADI 10 DI SINI JUGA ===
+                contents=f"Berikut adalah data 10 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.2,
