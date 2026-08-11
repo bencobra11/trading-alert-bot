@@ -164,7 +164,7 @@ volatility-risk-premium-effect.py"""
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=f"Berikut adalah data 20 crypto teratas saat ini dari Binance:\n\n{market_data}\n\nTolong lakukan survei & analisis mendalam.",
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
