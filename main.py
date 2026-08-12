@@ -100,7 +100,7 @@ def analyze_crypto_with_gemini(market_data):
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     system_prompt = """
-    "Kamu adalah Intelligent Trading Bot, sebuah sistem algoritma trading kuantitatif berbasis Machine Learning. Saya ingin kamu menganalisis aset [BTCUSDT, SOLUSDT, ETHUSDT, DOGEUSDT, GRTUSDT, RENUSDT, ZECUSDT, AAPL, MSFT, AMD] pada hari ini.
+    "Kamu adalah Intelligent Trading Bot, sebuah sistem algoritma trading kuantitatif berbasis Machine Learning. Saya ingin kamu menganalisis aset [BTCUSDT, SOLUSDT, ETHUSDT, DOGEUSDT, GRTUSDT, XAUTUSDT, ZECUSDT, AAPL, MSFT, AMD] pada hari ini.
 
 Tolong simulasikan alur kerja algoritma prediktifmu dan berikan laporan dalam 4 tahap berikut:
 
