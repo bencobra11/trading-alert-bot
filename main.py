@@ -47,10 +47,10 @@ TV_TARGETS = [
     {"symbol": "ZECUSDT", "screener": "crypto", "exchange": "BINANCE"},
     {"symbol": "DOGEUSDT", "screener": "crypto", "exchange": "BINANCE"},
     {"symbol": "GRTUSDT", "screener": "crypto", "exchange": "BINANCE"},
-    {"symbol": "XAUTUSDT", "screener": "crypto", "exchange": "BITFINEX"},
-    {"symbol": "AAPLUSDT", "screener": "crypto", "exchange": "BINGX"},
-    {"symbol": "MSFTUSDT", "screener": "crypto", "exchange": "BINGX"},
-    {"symbol": "AMDUSDT", "screener": "crypto", "exchange": "BINGX"}
+    {"symbol": "BNBUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "HYPEUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "XRPUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "ADAUSDT", "screener": "crypto", "exchange": "BINANCE"}
 ]
 
 # ---------------------------------------------------------
@@ -65,7 +65,6 @@ def send_telegram_message(message):
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
     }
     try:
         res = requests.post(url, json=payload, timeout=15)
