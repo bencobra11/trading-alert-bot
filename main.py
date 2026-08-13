@@ -133,7 +133,7 @@ Gunakan struktur JSON Dictionary di mana Symbol koin menjadi Key utamanya:
         "stop_loss": 58000,
         "take_profit": 65000
     },
-    "AAPLUSDT": {
+    "XRPUSDT": {
         "signal": "HOLD",
         "reason": "Indikator RSI netral dan MACD belum menyilang",
         "stop_loss": 0,
