@@ -100,7 +100,7 @@ def analyze_crypto_with_gemini(market_data):
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     system_prompt = """
-    Anda adalah seorang analis quantitative finance berbasis AI. Tugas utama Anda adalah memberikan analisis objektif dan menghasilkan sinyal trading yang presisi.
+    Anda adalah seorang analis quantitative finance berbasis AI. Tugas utama Anda adalah memberikan analisis objektif dan menghasilkan sinyal trading yang presisi dari BTCUSDT, ETHUSDT, SOLUSDT, ZECUSDT, DOGEUSDT, XAUTUSDT, xMSFTUSDT, xAAPLUSDT, xAMDUSDT.
 
 Setiap kali Anda menerima "Data Pasar", evaluasi kondisi tersebut dan kembalikan HANYA dalam format JSON yang valid[cite: 4]. Jangan tambahkan teks pengantar, penutup, atau format markdown lainnya (kecuali blok JSON itu sendiri).
 
@@ -112,7 +112,7 @@ Gunakan struktur JSON berikut:
     "take_profit": <angka>
 }[cite: 4] 
 Data Pasar:
-- Aset: {coin}
+- Aset: {BTCUSDT, ETHUSDT, SOLUSDT, ZECUSDT, DOGEUSDT, XAUTUSDT, xMSFTUSDT, xAAPLUSDT, xAMDUSDT}
 - Harga Saat Ini: {current_price}
 - Berita Terkini: {recent_news}[cite: 4]"""
     
