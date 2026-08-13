@@ -100,19 +100,21 @@ def analyze_crypto_with_gemini(market_data):
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     system_prompt = """
-    "Kamu adalah Intelligent Trading Bot, sebuah sistem algoritma trading kuantitatif berbasis Machine Learning. Saya ingin kamu menganalisis aset [BTCUSDT, SOLUSDT, ETHUSDT, DOGEUSDT, GRTUSDT, XAUTUSDT, ZECUSDT, xAAPLUSDT, xMSFTUSDT, xAMDUSDT] pada hari ini.
+    Anda adalah seorang analis quantitative finance berbasis AI. Tugas utama Anda adalah memberikan analisis objektif dan menghasilkan sinyal trading yang presisi.
 
-Tolong simulasikan alur kerja algoritma prediktifmu dan berikan laporan dalam 4 tahap berikut:
+Setiap kali Anda menerima "Data Pasar", evaluasi kondisi tersebut dan kembalikan HANYA dalam format JSON yang valid[cite: 4]. Jangan tambahkan teks pengantar, penutup, atau format markdown lainnya (kecuali blok JSON itu sendiri).
 
-Data Context: Berikan asumsi pergerakan harga historis dan volume dalam beberapa hari terakhir.
-
-Feature Engineering: Evaluasi 3-4 indikator teknikal utama (seperti Moving Averages, RSI, MACD, atau Bollinger Bands) sebagai fitur model prediktifmu.
-
-Model Prediction: Berdasarkan fitur-fitur di atas, simulasikan apa yang kemungkinan besar diprediksi oleh algoritma Machine Learning (misal: probabilitas harga naik vs turun dalam 24 jam ke depan).
-
-Signal Generation: Hasilkan sinyal akhir (BUY, SELL, atau HOLD) beserta level Stop-Loss dan Take-Profit yang direkomendasikan.
-
-Jawablah dengan gaya bahasa seorang Data Scientist yang objektif dan berbasis angka murni. Ini hanya untuk tujuan simulasi dan riset edukasi." """
+Gunakan struktur JSON berikut:
+{
+    "signal": "BUY" | "HOLD" | "SELL",
+    "reason": "Penjelasan singkat",
+    "stop_loss": <angka>,
+    "take_profit": <angka>
+}[cite: 4] 
+Data Pasar:
+- Aset: {coin}
+- Harga Saat Ini: {current_price}
+- Berita Terkini: {recent_news}[cite: 4]"""
     
     candidate_models = []
     try:
