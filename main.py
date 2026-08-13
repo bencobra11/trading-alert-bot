@@ -100,14 +100,21 @@ def get_tradingview_data():
                 f"RSI: {rsi:.2f} | MACD: {macd:.2f} | EMA20: ${ema20:,.4f} | "
                 f"Sinyal TradingView: {tv_recommendation}"
             )
+            
+            # --- TAMBAHKAN BARIS INI ---
+            # Jeda 2 detik sebelum mengambil koin berikutnya agar tidak kena limit 429
+            time.sleep(2) 
+            
         except Exception as e:
             print(f"[ERROR TV] Gagal mengambil data {asset['symbol']}: {e}")
+            
+            # --- TAMBAHKAN BARIS INI JUGA ---
+            time.sleep(2) 
             
     if not formatted_summary:
         return None
         
     return "\n".join(formatted_summary)
-
 # ---------------------------------------------------------
 # 5. ANALISIS DENGAN GOOGLE GEMINI API
 # ---------------------------------------------------------
@@ -143,7 +150,8 @@ Gunakan struktur JSON Dictionary di mana Symbol koin menjadi Key utamanya:
 }
 Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
 
-    default_candidates = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash']
+    # Menghapus versi 1.5 karena SDK GenAI terbaru sering merujuk ke versi 2.0 atau 2.5
+    default_candidates = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro']
     
     for model_name in default_candidates:
         try:
