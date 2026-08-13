@@ -51,43 +51,60 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"[ERROR] Gagal mengirim pesan ke Telegram: {e}")
 
+from tradingview_ta import TA_Handler, Interval, Exchange
+
 # ---------------------------------------------------------
-# 4. FETCH DATA MARKET BINANCE (24h Ticker)
+# 4. FETCH DATA MARKET TRADINGVIEW
 # ---------------------------------------------------------
-def get_binance_top_crypto(limit=20):
-    """Mengambil top pairs USDT dari Binance berdasarkan Volume 24 Jam"""
-    try:
-        url = "https://api.binance.com/api/v3/ticker/24hr"
-        response = requests.get(url, timeout=15)
-        data = response.json()
-        
-        ignored = ["USDCUSDT", "BUSDUSDT", "FDUSDUSDT", "TUSDUSDT", "DAIUSDT", "EURUSDT"]
-        usdt_pairs = [
-            item for item in data 
-            if item['symbol'].endswith('USDT') and item['symbol'] not in ignored
-        ]
-        
-        usdt_pairs.sort(key=lambda x: float(x['quoteVolume']), reverse=True)
-        top_pairs = usdt_pairs[:limit]
-        
-        formatted_summary = []
-        for coin in top_pairs:
-            symbol = coin['symbol'].replace('USDT', '')
-            price = float(coin['lastPrice'])
-            price_change = float(coin['priceChangePercent'])
-            high = float(coin['highPrice'])
-            low = float(coin['lowPrice'])
-            vol_usd = float(coin['quoteVolume']) / 1_000_000
+# Sesuaikan 'symbol' dan 'exchange' persis seperti yang tertulis di TradingView.
+# Contoh: Jika xAAPLUSDT ada di BingX, tulis exchange: "BINGX".
+TV_TARGETS = [
+    {"symbol": "BTCUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "ETHUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "SOLUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "ZECUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "DOGEUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "GRTUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    # Untuk aset emas dan saham sintetis, pastikan exchange-nya benar (misal: BINGX, OANDA, dll)
+    {"symbol": "XAUTUSDT", "screener": "crypto", "exchange": "BITFINEX"}, 
+    {"symbol": "AAPLUSDT", "screener": "crypto", "exchange": "BINGX"}, 
+    {"symbol": "MSFTUSDT", "screener": "crypto", "exchange": "BINGX"},
+    {"symbol": "AMDUSDT", "screener": "crypto", "exchange": "BINGX"}
+]
+
+def get_tradingview_data():
+    """Mengambil harga dan indikator teknikal dari TradingView"""
+    formatted_summary = []
+    
+    for asset in TV_TARGETS:
+        try:
+            handler = TA_Handler(
+                symbol=asset["symbol"],
+                screener=asset["screener"],
+                exchange=asset["exchange"],
+                interval=Interval.INTERVAL_4_HOURS # Bisa diganti: INTERVAL_1_DAY, INTERVAL_1_HOUR
+            )
+            analysis = handler.get_analysis()
+            
+            # Mengambil harga dan indikator kunci
+            price = analysis.indicators.get("close", 0)
+            rsi = analysis.indicators.get("RSI", 0)
+            macd = analysis.indicators.get("MACD.macd", 0)
+            ema20 = analysis.indicators.get("EMA20", 0)
+            tv_recommendation = analysis.summary.get("RECOMMENDATION", "NEUTRAL")
             
             formatted_summary.append(
-                f"- {symbol}/USDT | Harga: ${price:,.4f} | 24h Change: {price_change:+.2f}% | "
-                f"High: ${high:,.4f} | Low: ${low:,.4f} | Vol 24h: ${vol_usd:,.2f}M"
+                f"Aset: {asset['symbol']} | Harga: ${price:,.4f} | "
+                f"RSI: {rsi:.2f} | MACD: {macd:.2f} | EMA20: ${ema20:,.4f} | "
+                f"Sinyal Internal TradingView: {tv_recommendation}"
             )
+        except Exception as e:
+            print(f"[ERROR TV] Gagal mengambil data {asset['symbol']}: {e}")
             
-        return "\n".join(formatted_summary)
-    except Exception as e:
-        print(f"[ERROR Binance API] Gagal mengambil data pasar: {e}")
+    if not formatted_summary:
         return None
+        
+    return "\n".join(formatted_summary)
 
 # ---------------------------------------------------------
 # 5. ANALISIS DENGAN GOOGLE GEMINI API (DYNAMIC AUTO-TRY)
@@ -99,22 +116,30 @@ def analyze_crypto_with_gemini(market_data):
         
     client = genai.Client(api_key=GEMINI_API_KEY)
     
-    system_prompt = """
-    Anda adalah seorang analis quantitative finance berbasis AI. Tugas utama Anda adalah memberikan analisis objektif dan menghasilkan sinyal trading yang presisi untuk trading futures dari BTCUSDT, ETHUSDT, SOLUSDT, ZECUSDT, DOGEUSDT, XAUTUSDT, GRTUSDT, xMSFTUSDT, xAAPLUSDT, xAMDUSDT.
+    system_prompt = """Anda adalah seorang analis quantitative finance berbasis AI. Tugas Anda adalah membaca indikator teknikal (Harga, RSI, MACD, EMA20, dan Rekomendasi bawaan) lalu memberikan sinyal trading akhir.
 
-Setiap kali Anda menerima "Data Pasar", evaluasi kondisi tersebut dan kembalikan HANYA dalam format JSON yang valid[cite: 4]. Jangan tambahkan teks pengantar, penutup, atau format markdown lainnya (kecuali blok JSON itu sendiri).
+Aturan Analisis Anda:
+1. RSI < 30 adalah oversold (potensi BUY), RSI > 70 adalah overbought (potensi SELL).
+2. Perhatikan posisi harga terhadap EMA20 untuk tren.
+3. Pertimbangkan "Sinyal Internal TradingView" sebagai faktor pendukung.
 
-Gunakan struktur JSON berikut:
+Evaluasi dan kembalikan HANYA dalam format JSON valid tanpa format markdown (```json).
+Gunakan struktur JSON Dictionary di mana Symbol koin menjadi Key utamanya:
 {
-    "signal": "BUY" | "HOLD" | "SELL",
-    "reason": "Penjelasan singkat",
-    "stop_loss": <angka>,
-    "take_profit": <angka>
-}[cite: 4] 
-Data Pasar:
-- Aset: {BTCUSDT, ETHUSDT, SOLUSDT, ZECUSDT, DOGEUSDT, XAUTUSDT, GRTUSDT, xMSFTUSDT, xAAPLUSDT, xAMDUSDT}
-- Harga Saat Ini: {current_price}
-- Berita Terkini: {recent_news}[cite: 4]"""
+    "BTCUSDT": {
+        "signal": "BUY",
+        "reason": "Harga di atas EMA20 dan RSI menunjukkan momentum bullish yang kuat",
+        "stop_loss": 58000,
+        "take_profit": 65000
+    },
+    "AAPLUSDT": {
+        "signal": "HOLD",
+        "reason": "Indikator RSI netral dan MACD belum menyilang",
+        "stop_loss": 0,
+        "take_profit": 0
+    }
+}
+Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
     
     candidate_models = []
     try:
@@ -152,30 +177,62 @@ Data Pasar:
             
     return f"⚠️ *Gagal melakukan analisis Gemini API:* `{str(last_err)}`"
 
+import re # Tambahkan ini di bagian paling atas skrip Anda (di bawah import json)
+
 # ---------------------------------------------------------
-# 6. WORKER LOOP / SCHEDULED SURVEI
+# 6. WORKER LOOP & FILTERING SIGNAL
 # ---------------------------------------------------------
 def survey_loop():
     """Loop otomatis untuk menjalankan survei secara berkala"""
     print("🤖 Bot Crypto Gemini AI Survey siap & berjalan...")
-    send_telegram_message("🚀 *Bot Crypto Market Screener + Gemini AI Aktif!*\nSistem mulai melakukan survei pasar pertama...")
+    send_telegram_message("🚀 *Bot Screener Aktif!*\nMemantau indikator teknikal dari TradingView...")
     
     while True:
         try:
-            print("[INFO] Mengambil data Binance & menjalankan survei Gemini...")
-            market_data = get_binance_top_crypto(limit=TOP_COINS_COUNT)
+            print("[INFO] Mengambil data indikator dari TradingView...")
+            # Memanggil fungsi data TradingView (Blok 4 yang baru)
+            market_data = get_tradingview_data()
             
             if market_data:
-                analysis_report = analyze_crypto_with_gemini(market_data)
-                send_telegram_message(analysis_report)
+                print("[INFO] Menjalankan survei Gemini...")
+                # Mengirim data TradingView ke Gemini API
+                ai_response_text = analyze_crypto_with_gemini(market_data)
+                
+                if ai_response_text:
+                    # Bersihkan teks jika AI membandel membungkusnya dengan ```json ... ```
+                    cleaned_json = re.sub(r'```(?:json)?\n?(.*?)\n?```', r'\1', ai_response_text, flags=re.DOTALL).strip()
+                    
+                    try:
+                        signals = json.loads(cleaned_json)
+                        
+                        # Loop setiap koin dari hasil JSON
+                        for coin, data in signals.items():
+                            signal_type = data.get("signal", "HOLD").upper()
+                            
+                            # FILTERING: Hanya kirim pesan jika BUY atau SELL
+                            if signal_type in ["BUY", "SELL"]:
+                                msg = (
+                                    f"🚨 **SIGNAL {signal_type} : {coin}** 🚨\n\n"
+                                    f"📝 Alasan: {data.get('reason')}\n"
+                                    f"🎯 Take Profit: {data.get('take_profit')}\n"
+                                    f"🛑 Stop Loss: {data.get('stop_loss')}"
+                                )
+                                send_telegram_message(msg)
+                                print(f"[ALERT] {coin} -> {signal_type} terkirim!")
+                            else:
+                                print(f"[HOLD] {coin} - Tidak ada tindakan (Pesan tidak dikirim).")
+                                
+                    except json.JSONDecodeError:
+                        print("[ERROR] AI tidak mengembalikan format JSON yang valid. Teks AI:\n", cleaned_json)
+                        
             else:
-                send_telegram_message("⚠️ *Gagal mengambil data pasar dari Binance.*")
+                print("⚠️ Gagal mengambil data pasar dari TradingView.")
                 
         except Exception as e:
             print(f"[ERROR Loop] {e}")
             
         sleep_seconds = int(SURVEY_INTERVAL_HOURS * 3600)
-        print(f"[INFO] Survei berikutnya dalam {SURVEY_INTERVAL_HOURS} jam ({sleep_seconds} detik)...")
+        print(f"[INFO] Survei selesai. Menunggu siklus berikutnya dalam {SURVEY_INTERVAL_HOURS} jam...")
         time.sleep(sleep_seconds)
 
 # ---------------------------------------------------------
