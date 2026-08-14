@@ -3,6 +3,7 @@ import time
 import json
 import re
 import requests
+import ccxt
 from flask import Flask, jsonify
 from threading import Thread
 from google import genai
@@ -75,42 +76,73 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"[ERROR] Gagal mengirim pesan ke Telegram: {e}")
 
+# Daftar target aset untuk Binance (Gunakan garis miring untuk CCXT)
+TARGET_ASSETS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "DOGE/USDT", "XRP/USDT"]
+
+# Inisialisasi koneksi ke Binance
+exchange = ccxt.binance({'enableRateLimit': True})
+
 # ---------------------------------------------------------
-# 4. FETCH DATA MARKET TRADINGVIEW
+# 4. FETCH ADVANCED DATA (Order Flow, VWAP, Volume Profile)
 # ---------------------------------------------------------
-def get_tradingview_data():
+def get_institutional_data():
     formatted_summary = []
-    for asset in TV_TARGETS:
+    
+    for symbol in TARGET_ASSETS:
         try:
-            handler = TA_Handler(
-                symbol=asset["symbol"],
-                screener=asset["screener"],
-                exchange=asset["exchange"],
-                interval=Interval.INTERVAL_4_HOURS
-            )
-            analysis = handler.get_analysis()
+            print(f"[INFO] Mengambil data institusional untuk {symbol}...")
             
-            price = analysis.indicators.get("close", 0)
-            rsi = analysis.indicators.get("RSI", 0)
-            macd = analysis.indicators.get("MACD.macd", 0)
-            ema20 = analysis.indicators.get("EMA20", 0)
-            tv_recommendation = analysis.summary.get("RECOMMENDATION", "NEUTRAL")
+            # 1. Mengambil Klines/Candles (4 Jam terakhir, 100 candle)
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=100)
             
+            # Variabel untuk VWAP & Volume Profile
+            total_vol = 0
+            total_vol_price = 0
+            volume_by_price = {}
+            current_price = ohlcv[-1][4] # Harga penutupan terakhir
+            
+            for candle in ohlcv:
+                high, low, close, volume = candle[2], candle[3], candle[4], candle[5]
+                typical_price = (high + low + close) / 3
+                
+                # Kalkulasi akumulasi VWAP
+                total_vol += volume
+                total_vol_price += typical_price * volume
+                
+                # Kalkulasi Volume Profile (Membulatkan harga untuk membuat "zona" profil)
+                # Pembulatan dinamis: BTC dibulatkan per $10, Koin kecil per sen.
+                round_factor = -1 if close > 1000 else (2 if close < 1 else 4)
+                price_zone = round(close, round_factor)
+                volume_by_price[price_zone] = volume_by_price.get(price_zone, 0) + volume
+
+            vwap = total_vol_price / total_vol if total_vol > 0 else current_price
+            
+            # Mendapatkan Point of Control (POC) -> Zona harga dengan volume transaksi TERBESAR
+            poc_price = max(volume_by_price, key=volume_by_price.get)
+            
+            # 2. Mengambil Order Book untuk Order Flow Imbalance
+            order_book = exchange.fetch_order_book(symbol, limit=50)
+            bids_vol = sum([bid[1] for bid in order_book['bids']]) # Total antrean Beli
+            asks_vol = sum([ask[1] for ask in order_book['asks']]) # Total antrean Jual
+            
+            # Menentukan dominasi Order Flow
+            if bids_vol > asks_vol:
+                order_flow = f"DOMINASI BUY (Rasio {bids_vol/asks_vol:.1f}x vs Sell)"
+            else:
+                order_flow = f"DOMINASI SELL (Rasio {asks_vol/bids_vol:.1f}x vs Buy)"
+
             formatted_summary.append(
-                f"Aset: {asset['symbol']} | Harga: ${price:,.4f} | "
-                f"RSI: {rsi:.2f} | MACD: {macd:.2f} | EMA20: ${ema20:,.4f} | "
-                f"Sinyal TradingView: {tv_recommendation}"
+                f"Aset: {symbol} | Harga Saat Ini: ${current_price:,.4f}\n"
+                f"   - VWAP (Anchored): ${vwap:,.4f}\n"
+                f"   - Vol Profile (Point of Control): ${poc_price:,.4f}\n"
+                f"   - Order Flow Imbalance: {order_flow}\n"
             )
             
-            # --- TAMBAHKAN BARIS INI ---
-            # Jeda 2 detik sebelum mengambil koin berikutnya agar tidak kena limit 429
-            time.sleep(2) 
+            time.sleep(1) # Jeda agar tidak kena rate limit Binance
             
         except Exception as e:
-            print(f"[ERROR TV] Gagal mengambil data {asset['symbol']}: {e}")
-            
-            # --- TAMBAHKAN BARIS INI JUGA ---
-            time.sleep(2) 
+            print(f"[ERROR Data] Gagal memproses {symbol}: {e}")
+            time.sleep(1)
             
     if not formatted_summary:
         return None
@@ -127,53 +159,41 @@ def analyze_crypto_with_gemini(market_data):
         
     client = genai.Client(api_key=GEMINI_API_KEY)
     
-    system_prompt = """Anda adalah seorang analis quantitative finance berbasis AI. Tugas Anda adalah membaca indikator teknikal (Harga, RSI, MACD, EMA20, dan Rekomendasi bawaan) lalu memberikan sinyal trading akhir.
+    # Prompt dirombak khusus untuk analisis Smart Money Concepts (SMC)
+    system_prompt = """Anda adalah analis trading institusional. Tugas Anda membaca data Order Flow, VWAP, dan Volume Profile untuk menghasilkan sinyal trading.
 
-Aturan Analisis Anda:
-1. RSI < 30 adalah oversold (potensi BUY), RSI > 70 adalah overbought (potensi SELL).
-2. Perhatikan posisi harga terhadap EMA20 untuk tren.
-3. Pertimbangkan "Sinyal TradingView" sebagai faktor pendukung.
+Aturan Logika Smart Money Anda:
+1. VWAP: Jika Harga > VWAP, tren naik. Jika Harga < VWAP, tren turun. VWAP sering bertindak sebagai magnet atau support/resistance dinamis.
+2. Volume Profile (Point of Control / POC): Ini adalah area harga dengan volume tertinggi. Harga cenderung kembali ke POC. Jika harga menjauh dari POC dengan Order Flow sejalan, itu adalah breakout valid.
+3. Order Flow: Konfirmasi sentimen. Jika Order Flow "DOMINASI BUY" dan Harga berada di area support (VWAP/POC), probabilitas BUY sangat tinggi.
 
-Evaluasi dan kembalikan HANYA dalam format JSON valid tanpa format markdown (```json).
-Gunakan struktur JSON Dictionary di mana Symbol koin menjadi Key utamanya:
+Evaluasi dan kembalikan HANYA format JSON valid:
 {
-    "BTCUSDT": {
+    "BTC/USDT": {
         "signal": "BUY",
-        "reason": "Harga di atas EMA20 dan RSI menunjukkan momentum bullish yang kuat",
+        "reason": "Harga memantul dari VWAP dan Point of Control didukung Order Flow Dominasi Buy 1.5x",
         "stop_loss": 58000,
         "take_profit": 65000
-    },
-    "XRPUSDT": {
-        "signal": "HOLD",
-        "reason": "Indikator RSI netral dan MACD belum menyilang",
-        "stop_loss": 0,
-        "take_profit": 0
     }
 }
-Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
+Gunakan signal: "BUY", "HOLD", atau "SELL"."""
 
-    # FITUR PENCARIAN MODEL OTOMATIS
     available_models = []
     try:
         listed_models = list(client.models.list())
         for m in listed_models:
             name = m.name.replace("models/", "")
-            # Ambil semua model yang memiliki kata "gemini"
             if "gemini" in name:
                 available_models.append(name)
-        print(f"[INFO] Model yang tersedia untuk API Key Anda: {available_models}")
     except Exception as e:
-        print(f"[WARNING] Gagal mengambil daftar model: {e}")
-        # Fallback standar jika pencarian gagal
-        available_models = ['gemini-1.5-pro', 'gemini-1.5-flash']
+        available_models = ['gemini-2.5-flash', 'gemini-2.0-flash']
     
-    # Looping mencoba model yang tersedia satu per satu
     for model_name in available_models:
         try:
-            print(f"[INFO] Mencoba memproses analisis dengan model: {model_name}")
+            print(f"[INFO] Memproses AI SMC dengan: {model_name}")
             response = client.models.generate_content(
                 model=model_name,
-                contents=f"Berikut adalah data indikator teknikal terkini:\n\n{market_data}\n\nLakukan analisis mendalam dan berikan output JSON.",
+                contents=f"Berikut adalah data institusional terkini:\n\n{market_data}\n\nBerikan keputusan JSON Anda.",
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.1,
@@ -182,10 +202,8 @@ Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
             if response and response.text:
                 return response.text
         except Exception as e:
-            print(f"[DEBUG] Model {model_name} gagal: {e}")
             continue
             
-    print("[ERROR] Semua model Gemini gagal memproses data.")
     return None
 
 # ---------------------------------------------------------
@@ -194,7 +212,7 @@ Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
 def run_market_analysis():
     print("🤖 Memulai eksekusi analisis pasar...")
     try:
-        market_data = get_tradingview_data()
+        market_data = get_institutional_data()
         
         if market_data:
             ai_response_text = analyze_crypto_with_gemini(market_data)
