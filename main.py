@@ -8,7 +8,6 @@ from flask import Flask, jsonify
 from threading import Thread
 from google import genai
 from google.genai import types
-from tradingview_ta import TA_Handler, Interval
 
 # ---------------------------------------------------------
 # 1. FLASK WEB SERVER & ENDPOINT TRIGGER
