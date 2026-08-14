@@ -48,7 +48,7 @@ TV_TARGETS = [
     {"symbol": "DOGEUSDT", "screener": "crypto", "exchange": "BINANCE"},
     {"symbol": "GRTUSDT", "screener": "crypto", "exchange": "BINANCE"},
     {"symbol": "BNBUSDT", "screener": "crypto", "exchange": "BINANCE"},
-    {"symbol": "HYPEUSDT", "screener": "crypto", "exchange": "BINANCE"},
+    {"symbol": "HYPEUSDT", "screener": "crypto", "exchange": "TV_TARGETS"},
     {"symbol": "XRPUSDT", "screener": "crypto", "exchange": "BINANCE"},
     {"symbol": "ADAUSDT", "screener": "crypto", "exchange": "BINANCE"}
 ]
@@ -115,6 +115,7 @@ def get_tradingview_data():
         return None
         
     return "\n".join(formatted_summary)
+
 # ---------------------------------------------------------
 # 5. ANALISIS DENGAN GOOGLE GEMINI API
 # ---------------------------------------------------------
@@ -150,12 +151,25 @@ Gunakan struktur JSON Dictionary di mana Symbol koin menjadi Key utamanya:
 }
 Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
 
-    # Menghapus versi 1.5 karena SDK GenAI terbaru sering merujuk ke versi 2.0 atau 2.5
-    default_candidates = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro']
+    # FITUR PENCARIAN MODEL OTOMATIS
+    available_models = []
+    try:
+        listed_models = list(client.models.list())
+        for m in listed_models:
+            name = m.name.replace("models/", "")
+            # Ambil semua model yang memiliki kata "gemini"
+            if "gemini" in name:
+                available_models.append(name)
+        print(f"[INFO] Model yang tersedia untuk API Key Anda: {available_models}")
+    except Exception as e:
+        print(f"[WARNING] Gagal mengambil daftar model: {e}")
+        # Fallback standar jika pencarian gagal
+        available_models = ['gemini-1.5-pro', 'gemini-1.5-flash']
     
-    for model_name in default_candidates:
+    # Looping mencoba model yang tersedia satu per satu
+    for model_name in available_models:
         try:
-            print(f"[INFO] Memproses analisis dengan model: {model_name}")
+            print(f"[INFO] Mencoba memproses analisis dengan model: {model_name}")
             response = client.models.generate_content(
                 model=model_name,
                 contents=f"Berikut adalah data indikator teknikal terkini:\n\n{market_data}\n\nLakukan analisis mendalam dan berikan output JSON.",
@@ -170,6 +184,7 @@ Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
             print(f"[DEBUG] Model {model_name} gagal: {e}")
             continue
             
+    print("[ERROR] Semua model Gemini gagal memproses data.")
     return None
 
 # ---------------------------------------------------------
