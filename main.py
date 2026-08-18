@@ -217,9 +217,9 @@ def process_signals(ai_response):
         print(f"[ERROR] AI tidak membalas JSON murni:\n{cleaned_json}")
         return None
 
-### Langkah Final Setelah Deploy
-1. **Atur API Key Binance:** Buka dashboard Render > **Environment**, lalu tambahkan `BINANCE_API_KEY` dan `BINANCE_SECRET` jika Anda punya (sangat disarankan agar IP terhindar dari Error 418).
-2. **Kaitkan Webhook Telegram:** Buka browser di laptop/HP Anda, lalu tempel URL ini (ganti tulisan huruf besar dengan data Anda):
-   `https://api.telegram.org/bot<TOKEN_BOT_ANDA>/setWebhook?url=https://<NAMA_WEB_RENDER_ANDA>.onrender.com/webhook`
-   Lalu tekan Enter.
-3. Buka Telegram bot Anda, ketik **/analisa** dan nikmati hasilnya!
+# ---------------------------------------------------------
+# 7. MAIN ENTRY POINT
+# ---------------------------------------------------------
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
