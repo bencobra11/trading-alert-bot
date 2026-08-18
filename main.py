@@ -217,8 +217,6 @@ def process_signals(ai_response):
         print(f"[ERROR] AI tidak membalas JSON murni:\n{cleaned_json}")
         return None
 
----
-
 ### Langkah Final Setelah Deploy
 1. **Atur API Key Binance:** Buka dashboard Render > **Environment**, lalu tambahkan `BINANCE_API_KEY` dan `BINANCE_SECRET` jika Anda punya (sangat disarankan agar IP terhindar dari Error 418).
 2. **Kaitkan Webhook Telegram:** Buka browser di laptop/HP Anda, lalu tempel URL ini (ganti tulisan huruf besar dengan data Anda):
