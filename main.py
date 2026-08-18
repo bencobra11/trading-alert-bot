@@ -92,6 +92,7 @@ def analyze_crypto_with_gemini(market_data):
     if not GEMINI_API_KEY:
         print("[ERROR] GEMINI_API_KEY belum dikonfigurasi!")
         return None
+        
     client = genai.Client(api_key=GEMINI_API_KEY)
     system_prompt = """Anda adalah analis trading institusional. Tugas Anda membaca data Order Flow, VWAP, dan Volume Profile untuk menghasilkan sinyal trading.
 
@@ -111,23 +112,42 @@ Evaluasi dan kembalikan HANYA format JSON valid seperti ini:
 }
 Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
 
-    available_models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+    # MENCARI MODEL YANG AVAILABLE SECARA OTOMATIS
+    available_models = []
+    try:
+        print("[INFO] Mencari daftar model Gemini yang tersedia...")
+        listed_models = list(client.models.list())
+        for m in listed_models:
+            name = m.name.replace("models/", "")
+            # Hanya kumpulkan model yang memiliki kata "gemini"
+            if "gemini" in name:
+                available_models.append(name)
+        print(f"[INFO] Model yang ditemukan untuk API Key Anda: {available_models}")
+    except Exception as e:
+        print(f"[WARNING] Gagal mengambil daftar model: {e}")
+        # Fallback jika gagal mencari otomatis
+        available_models = ['gemini-1.5-flash', 'gemini-1.5-pro']
+    
+    # MENCOBA MODEL SATU PER SATU
     for model_name in available_models:
         try:
-            print(f"[INFO] Memproses AI dengan: {model_name}")
+            print(f"[INFO] Mencoba memproses AI dengan: {model_name}")
             response = client.models.generate_content(
                 model=model_name,
                 contents=f"Berikut adalah data institusional terkini:\n\n{market_data}\n\nBerikan keputusan JSON Anda.",
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.1,
+                    response_mime_type="application/json", # Memaksa output menjadi JSON
                 )
             )
             if response and response.text:
                 return response.text
         except Exception as e:
-            print(f"[DEBUG] Model {model_name} gagal, mencoba model lain...")
+            # Ini akan mencetak alasan asli dari Google (misalnya: kuota habis, model deprecated, dll)
+            print(f"[DEBUG] Model {model_name} gagal karena: {e}")
             continue
+            
     print("[ERROR] Semua model Gemini gagal merespons.")
     return None
 
