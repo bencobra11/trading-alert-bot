@@ -217,6 +217,28 @@ def process_signals(ai_response):
         print(f"[ERROR] AI tidak membalas JSON murni:\n{cleaned_json}")
         return None
 
+def run_on_demand_analysis(chat_id):
+    """Dijalankan dari Telegram via /analisa: Mengirim laporan LENGKAP semua koin"""
+    print(f"🤖 Memulai analisis On-Demand untuk chat ID: {chat_id}")
+    market_data = get_institutional_data()
+    if market_data:
+        ai_response = analyze_crypto_with_gemini(market_data)
+        if ai_response:
+            signals = process_signals(ai_response)
+            if signals:
+                balasan = "📊 **HASIL ANALISIS SMC TERKINI** 📊\n\n"
+                for coin, data in signals.items():
+                    balasan += f"🔸 **{coin}** -> *{data.get('signal')}*\n"
+                    balasan += f"📝 {data.get('reason')}\n"
+                    balasan += f"🎯 TP: {data.get('take_profit')} | 🛑 SL: {data.get('stop_loss')}\n\n"
+                send_telegram_message(balasan, specific_chat_id=chat_id)
+            else:
+                send_telegram_message("⚠️ AI gagal memberikan format JSON yang valid.", specific_chat_id=chat_id)
+        else:
+            send_telegram_message("⚠️ AI gagal merespons permintaan.", specific_chat_id=chat_id)
+    else:
+        send_telegram_message("⚠️ Gagal mengambil data pasar dari server Binance.", specific_chat_id=chat_id)
+
 # ---------------------------------------------------------
 # 7. MAIN ENTRY POINT
 # ---------------------------------------------------------
