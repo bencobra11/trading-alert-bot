@@ -210,8 +210,12 @@ Hanya gunakan signal: "BUY", "HOLD", atau "SELL"."""
 # ---------------------------------------------------------
 def process_signals(ai_response):
     """Fungsi bantuan untuk mengekstrak JSON dari respon Gemini"""
-    cleaned_json = re.sub(r'
-http://googleusercontent.com/immersive_entry_chip/0
+    cleaned_json = re.sub(r'```(?:json)?\n?(.*?)\n?```', r'\1', ai_response, flags=re.DOTALL).strip()
+    try:
+        return json.loads(cleaned_json)
+    except json.JSONDecodeError:
+        print(f"[ERROR] AI tidak membalas JSON murni:\n{cleaned_json}")
+        return None
 
 ---
 
