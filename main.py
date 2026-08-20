@@ -23,9 +23,16 @@ if BINANCE_API_KEY and BINANCE_SECRET:
     exchange = ccxt.binance({
         'apiKey': BINANCE_API_KEY,
         'secret': BINANCE_SECRET,
-        'enableRateLimit': True
+        'enableRateLimit': True,
+        'options': {
+            'defaultType': 'spot',
+            'adjustForTimeDifference': True, # Sinkronisasi waktu
+            # Opsi di bawah ini sangat penting untuk mengurangi beban (weight) 
+            # agar IP tidak mudah terkena blokir 418.
+            'fetchOrderBookWarning': False 
+        }
     })
-    print("[INFO] Terhubung ke Binance menggunakan API Key.")
+    print("[INFO] Terhubung ke Binance menggunakan API Key (Jalur VIP).")
 else:
     exchange = ccxt.binance({'enableRateLimit': True})
     print("[WARNING] Terhubung tanpa API Key Binance (Rentan terkena limit IP).")
@@ -47,7 +54,7 @@ def get_institutional_data():
     for symbol in TARGET_ASSETS:
         try:
             print(f"[INFO] Mengambil data institusional untuk {symbol}...")
-            ohlcv = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=100)
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=50)
             total_vol = 0
             total_vol_price = 0
             volume_by_price = {}
@@ -79,10 +86,10 @@ def get_institutional_data():
                 f"   - Vol Profile (POC): ${poc_price:,.4f}\n"
                 f"   - Order Flow Imbalance: {order_flow}\n"
             )
-            time.sleep(5) 
+            time.sleep(8) 
         except Exception as e:
             print(f"[ERROR Data] Gagal memproses {symbol}: {e}")
-            time.sleep(5)
+            time.sleep(8)
             
     if not formatted_summary:
         return None
